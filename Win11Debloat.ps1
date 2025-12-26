@@ -353,6 +353,204 @@ function ShowAppSelectionForm {
 }
 
 
+function ShowReinstallAppSelectionForm {
+    [reflection.assembly]::loadwithpartialname("System.Windows.Forms") | Out-Null
+    [reflection.assembly]::loadwithpartialname("System.Drawing") | Out-Null
+
+    # Initialise form objects
+    $form = New-Object System.Windows.Forms.Form
+    $label = New-Object System.Windows.Forms.Label
+    $button1 = New-Object System.Windows.Forms.Button
+    $button2 = New-Object System.Windows.Forms.Button
+    $selectionBox = New-Object System.Windows.Forms.CheckedListBox
+    $loadingLabel = New-Object System.Windows.Forms.Label
+    $checkUncheckCheckBox = New-Object System.Windows.Forms.CheckBox
+    $initialFormWindowState = New-Object System.Windows.Forms.FormWindowState
+
+    $script:selectionBoxIndex = -1
+
+    # saveButton eventHandler
+    $handler_saveButton_Click=
+    {
+        $script:SelectedApps = $selectionBox.CheckedItems
+        $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
+        $form.Close()
+    }
+
+    # cancelButton eventHandler
+    $handler_cancelButton_Click=
+    {
+        $form.Close()
+    }
+
+    $selectionBox_SelectedIndexChanged=
+    {
+        $script:selectionBoxIndex = $selectionBox.SelectedIndex
+    }
+
+    $selectionBox_MouseDown=
+    {
+        if ($_.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
+            if ([System.Windows.Forms.Control]::ModifierKeys -eq [System.Windows.Forms.Keys]::Shift) {
+                if ($script:selectionBoxIndex -ne -1) {
+                    $topIndex = $script:selectionBoxIndex
+
+                    if ($selectionBox.SelectedIndex -gt $topIndex) {
+                        for (($i = ($topIndex)); $i -le $selectionBox.SelectedIndex; $i++) {
+                            $selectionBox.SetItemChecked($i, $selectionBox.GetItemChecked($topIndex))
+                        }
+                    }
+                    elseif ($topIndex -gt $selectionBox.SelectedIndex) {
+                        for (($i = ($selectionBox.SelectedIndex)); $i -le $topIndex; $i++) {
+                            $selectionBox.SetItemChecked($i, $selectionBox.GetItemChecked($topIndex))
+                        }
+                    }
+                }
+            }
+            elseif ($script:selectionBoxIndex -ne $selectionBox.SelectedIndex) {
+                $selectionBox.SetItemChecked($selectionBox.SelectedIndex, -not $selectionBox.GetItemChecked($selectionBox.SelectedIndex))
+            }
+        }
+    }
+
+    $check_All=
+    {
+        for (($i = 0); $i -lt $selectionBox.Items.Count; $i++) {
+            $selectionBox.SetItemChecked($i, $checkUncheckCheckBox.Checked)
+        }
+    }
+
+    $load_Apps=
+    {
+        # Correct the initial state of the form to prevent the .Net maximized form issue
+        $form.WindowState = $initialFormWindowState
+
+        # Reset state to default before loading appslist again
+        $script:selectionBoxIndex = -1
+        $checkUncheckCheckBox.Checked = $False
+
+        # Show loading indicator
+        $loadingLabel.Visible = $true
+        $form.Refresh()
+
+        # Clear selectionBox before adding any new items
+        $selectionBox.Items.Clear()
+
+        # Set filePath where Appslist can be found
+        $appsFile = "$PSScriptRoot/Appslist.txt"
+
+        # Go through appslist and add items one by one to the selectionBox
+        Foreach ($app in (Get-Content -Path $appsFile | Where-Object { $_ -notmatch '^\s*$' -and $_ -notmatch '^#  .*' -and $_ -notmatch '^# -* #' } )) {
+            $appChecked = $true
+
+            # Remove first # if it exists and set appChecked to false
+            if ($app.StartsWith('#')) {
+                $app = $app.TrimStart("#")
+                $appChecked = $false
+            }
+
+            # Remove any comments from the Appname
+            if (-not ($app.IndexOf('#') -eq -1)) {
+                $app = $app.Substring(0, $app.IndexOf('#'))
+            }
+
+            # Remove leading and trailing spaces and `*` characters from Appname
+            $app = $app.Trim()
+            $appString = $app.Trim('*')
+
+            # Make sure appString is not empty
+            if ($appString.length -gt 0) {
+                # Add the app to the selectionBox and set it's checked status
+                $selectionBox.Items.Add($appString, $appChecked) | Out-Null
+            }
+        }
+
+        # Hide loading indicator
+        $loadingLabel.Visible = $False
+
+        # Sort selectionBox alphabetically
+        $selectionBox.Sorted = $True
+    }
+
+    $form.Text = "Win11Debloat Application Reinstallation"
+    $form.Name = "appReinstallSelectionForm"
+    $form.DataBindings.DefaultDataSourceUpdateMode = 0
+    $form.ClientSize = New-Object System.Drawing.Size(400,502)
+    $form.FormBorderStyle = 'FixedDialog'
+    $form.MaximizeBox = $False
+
+    $button1.TabIndex = 4
+    $button1.Name = "saveButton"
+    $button1.UseVisualStyleBackColor = $True
+    $button1.Text = "Confirm"
+    $button1.Location = New-Object System.Drawing.Point(27,472)
+    $button1.Size = New-Object System.Drawing.Size(75,23)
+    $button1.DataBindings.DefaultDataSourceUpdateMode = 0
+    $button1.add_Click($handler_saveButton_Click)
+
+    $form.Controls.Add($button1)
+
+    $button2.TabIndex = 5
+    $button2.Name = "cancelButton"
+    $button2.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $button2.UseVisualStyleBackColor = $True
+    $button2.Text = "Cancel"
+    $button2.Location = New-Object System.Drawing.Point(129,472)
+    $button2.Size = New-Object System.Drawing.Size(75,23)
+    $button2.DataBindings.DefaultDataSourceUpdateMode = 0
+    $button2.add_Click($handler_cancelButton_Click)
+
+    $form.Controls.Add($button2)
+
+    $label.Location = New-Object System.Drawing.Point(13,5)
+    $label.Size = New-Object System.Drawing.Size(400,14)
+    $Label.Font = 'Microsoft Sans Serif,8'
+    $label.Text = 'Check apps that you wish to reinstall, uncheck apps that you wish to keep uninstalled'
+
+    $form.Controls.Add($label)
+
+    $loadingLabel.Location = New-Object System.Drawing.Point(16,46)
+    $loadingLabel.Size = New-Object System.Drawing.Size(300,418)
+    $loadingLabel.Text = 'Loading apps...'
+    $loadingLabel.BackColor = "White"
+    $loadingLabel.Visible = $false
+
+    $form.Controls.Add($loadingLabel)
+
+    $checkUncheckCheckBox.TabIndex = 7
+    $checkUncheckCheckBox.Location = New-Object System.Drawing.Point(16,22)
+    $checkUncheckCheckBox.Size = New-Object System.Drawing.Size(150,20)
+    $checkUncheckCheckBox.Text = 'Check/Uncheck all'
+    $checkUncheckCheckBox.add_CheckedChanged($check_All)
+
+    $form.Controls.Add($checkUncheckCheckBox)
+
+    $selectionBox.FormattingEnabled = $True
+    $selectionBox.DataBindings.DefaultDataSourceUpdateMode = 0
+    $selectionBox.Name = "selectionBox"
+    $selectionBox.Location = New-Object System.Drawing.Point(13,43)
+    $selectionBox.Size = New-Object System.Drawing.Size(374,424)
+    $selectionBox.TabIndex = 3
+    $selectionBox.add_SelectedIndexChanged($selectionBox_SelectedIndexChanged)
+    $selectionBox.add_Click($selectionBox_MouseDown)
+
+    $form.Controls.Add($selectionBox)
+
+    # Save the initial state of the form
+    $initialFormWindowState = $form.WindowState
+
+    # Load apps into selectionBox
+    $form.add_Load($load_Apps)
+
+    # Focus selectionBox when form opens
+    $form.Add_Shown({$form.Activate(); $selectionBox.Focus()})
+
+    # Show the Form
+    return $form.ShowDialog()
+}
+
+
+
 # Returns list of apps from the specified file, it trims the app names and removes any comments
 function ReadAppslistFromFile {
     param (
