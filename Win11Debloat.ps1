@@ -1133,21 +1133,47 @@ function CreateSystemRestorePoint {
 }
 
 
+function ShowReinstallMode {
+    PrintHeader "App Reinstallation"
+
+    $result = ShowReinstallAppSelectionForm
+
+    if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
+        Write-Output "You have selected $($script:SelectedApps.Count) apps for reinstallation"
+        
+        # Suppress prompt if Silent parameter was passed
+        if (-not $Silent) {
+            Write-Output ""
+            Write-Output ""
+            Write-Output "Press enter to reinstall the selected apps or press CTRL+C to quit..."
+            Read-Host | Out-Null
+            PrintHeader "App Reinstallation"
+        }
+        
+        Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File `"$PSScriptRoot\Reinstall-Apps.ps1`" -AppsToInstall $($script:SelectedApps)" -Verb RunAs
+    }
+    else {
+        Write-Host "Selection was cancelled, no apps have been reinstalled" -ForegroundColor Red
+        Write-Output ""
+    }
+}
+
 function ShowScriptMenuOptions {
     Do { 
-        $ModeSelectionMessage = "Please select an option (1/2/3/0)" 
+        $ModeSelectionMessage = "Please select an option (1/2/3/4/0)" 
 
         PrintHeader 'Menu'
 
         Write-Host "(1) Default mode: Quickly apply the recommended changes"
         Write-Host "(2) Custom mode: Manually select what changes to make"
         Write-Host "(3) App removal mode: Select & remove apps, without making other changes"
+        Write-Host "(4) App reinstallation mode: Select & reinstall apps"
 
         # Only show this option if SavedSettings file exists
         if (Test-Path "$PSScriptRoot/SavedSettings") {
-            Write-Host "(4) Apply saved custom settings from last time"
+            Write-Host "(5) Apply saved custom settings from last time"
             
-            $ModeSelectionMessage = "Please select an option (1/2/3/4/0)" 
+            $ModeSelectionMessage = "Please select an option (1/2/3/4/5/0)" 
         }
 
         Write-Host ""
@@ -1164,11 +1190,11 @@ function ShowScriptMenuOptions {
             Write-Host "Press any key to go back..."
             $null = [System.Console]::ReadKey()
         }
-        elseif (($Mode -eq '4') -and -not (Test-Path "$PSScriptRoot/SavedSettings")) {
+        elseif (($Mode -eq '5') -and -not (Test-Path "$PSScriptRoot/SavedSettings")) {
             $Mode = $null
         }
     }
-    while ($Mode -ne '1' -and $Mode -ne '2' -and $Mode -ne '3' -and $Mode -ne '4')
+    while ($Mode -ne '1' -and $Mode -ne '2' -and $Mode -ne '3' -and $Mode -ne '4' -and $Mode -ne '5')
 
     return $Mode
 }
@@ -1965,8 +1991,14 @@ if ((-not $script:Params.Count) -or $RunDefaults -or $RunDefaultsLite -or $RunSa
             ShowAppRemoval
         }
 
-        # Load last used custom options from the "SavedSettings" file
+        # App reinstallation, reinstall apps based on user selection
         '4' {
+            ShowReinstallMode
+            AwaitKeyToExit
+        }
+
+        # Load last used custom options from the "SavedSettings" file
+        '5' {
             LoadAndShowSavedSettings
         }
     }
