@@ -1133,6 +1133,22 @@ function CreateSystemRestorePoint {
 }
 
 
+function Reinstall-Apps {
+    param (
+        [string[]]$appsList
+    )
+
+    foreach ($app in $appsList) {
+        Write-Output "Attempting to reinstall $app..."
+        try {
+            winget install --accept-source-agreements --accept-package-agreements --id $app
+        }
+        catch {
+            Write-Host "Error: Failed to reinstall $app. It might not be available in the winget repository or the package name is incorrect." -ForegroundColor Red
+        }
+    }
+}
+
 function ShowReinstallMode {
     PrintHeader "App Reinstallation"
 
@@ -1150,7 +1166,7 @@ function ShowReinstallMode {
             PrintHeader "App Reinstallation"
         }
         
-        Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File `"$PSScriptRoot\Reinstall-Apps.ps1`" -AppsToInstall $($script:SelectedApps)" -Verb RunAs
+        Reinstall-Apps -appsList $script:SelectedApps
     }
     else {
         Write-Host "Selection was cancelled, no apps have been reinstalled" -ForegroundColor Red
